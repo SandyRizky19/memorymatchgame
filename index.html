@@ -126,6 +126,14 @@
         playerName = document.getElementById('playerName').value.trim();
         if (!playerName) return alert('Masukkan nama terlebih dahulu.');
 
+        // Kalau game sudah aktif, jangan start ulang
+        if (document.getElementById('gameScreen').style.display === 'block') return;
+
+        // Reset data awal
+        score = 0;
+        level = 1;
+        lives = 3;
+
         document.getElementById('startScreen').style.display = 'none';
         document.getElementById('gameScreen').style.display = 'block';
 
@@ -210,9 +218,13 @@
               clearInterval(timer);
               if (level === 3) {
                 setTimeout(() => {
-                  alertBox('🎉 Selamat, kamu berhasil! Silakan ambil hadiah di panitia 🎁');
                   saveScore();
-                  setTimeout(resetToStart, 4000);
+                  alertBox(`
+    <div class="text-center">
+      🎉 Selamat, kamu berhasil! Silakan ambil hadiah di panitia 🎁<br><br>
+      <button onclick="resetToStart()" class="btn btn-success mt-3">Selesai</button>
+    </div>
+  `);
                 }, 500);
               } else {
                 alertBox(`Level ${level} selesai! Bersiap ke Level ${level + 1}...`);
@@ -249,8 +261,22 @@
       }
 
       function saveScore() {
+        if (!playerName || score === 0) return; // Jangan simpan kalau belum main atau skornya 0
         let scores = JSON.parse(localStorage.getItem('scoreboard') || '[]');
-        scores.push({ name: playerName, score });
+
+        // Cek apakah nama sudah pernah tersimpan
+        const existing = scores.find((s) => s.name === playerName);
+        if (existing) {
+          // Update skor jika sekarang lebih tinggi
+          if (score > existing.score) {
+            existing.score = score;
+          }
+        } else {
+          // Simpan baru kalau belum ada
+          scores.push({ name: playerName, score });
+        }
+
+        // Urutkan dari skor tertinggi
         scores.sort((a, b) => b.score - a.score);
         localStorage.setItem('scoreboard', JSON.stringify(scores));
         renderScoreboard();
