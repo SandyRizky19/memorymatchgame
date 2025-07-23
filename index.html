@@ -7,270 +7,249 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
     <style>
       body {
-        background-color: #f8f9fa;
-        text-align: center;
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        background-color: #f4f4f4;
       }
-      .game-board {
+      .game-container {
+        display: none;
+        padding: 20px;
+      }
+      .card-grid {
         display: grid;
-        grid-template-columns: repeat(4, 1fr);
+        grid-template-columns: repeat(4, 100px);
         gap: 10px;
         justify-content: center;
-        max-width: 600px;
-        margin: auto;
       }
       .card {
-        width: 100%;
-        aspect-ratio: 1/1;
-        perspective: 1000px;
-      }
-      .card-inner {
+        width: 100px;
+        height: 100px;
         position: relative;
-        width: 100%;
-        height: 100%;
-        transition: transform 0.6s;
-        transform-style: preserve-3d;
         cursor: pointer;
+        transform-style: preserve-3d;
+        transition: transform 0.5s;
       }
-      .card.flipped .card-inner {
+      .card.flip {
         transform: rotateY(180deg);
       }
-      .card-front,
-      .card-back {
-        position: absolute;
+      .card img {
         width: 100%;
         height: 100%;
+        object-fit: cover;
+        position: absolute;
         backface-visibility: hidden;
-        background-size: cover;
-        background-position: center;
         border-radius: 10px;
       }
-      .card-front {
+      .card .front {
         transform: rotateY(180deg);
       }
-      .lives span {
-        font-size: 1.5rem;
-        margin: 0 5px;
-        color: red;
+      .card .back {
+        background-color: #ccc;
+      }
+      .hidden {
+        visibility: hidden;
+      }
+      .scoreboard {
+        margin-top: 10px;
+      }
+      .alert-box {
+        font-size: 1.3rem;
+        margin-top: 20px;
+        text-align: center;
       }
     </style>
   </head>
-
-  <body>
-    <div class="container mt-4" id="start-screen">
-      <h1 class="mb-3">Memory Match</h1>
-      <input type="text" class="form-control mb-3" id="playerName" placeholder="Masukkan Nama Anda" />
-      <button class="btn btn-primary mb-3" onclick="startGame()">Start Game</button>
-      <button class="btn btn-danger mb-3" onclick="resetScoreboard()">Reset Score</button>
-      <h4>Scoreboard</h4>
-      <ul id="scoreboard" class="list-group mb-3"></ul>
+  <body class="text-center">
+    <div class="container mt-5" id="startScreen">
+      <h2>Memory Match Game</h2>
+      <input type="text" id="playerName" placeholder="Masukkan Nama" class="form-control w-50 mx-auto mb-3" />
+      <button class="btn btn-primary" onclick="startGame()">Mulai Game</button>
+      <button class="btn btn-danger" onclick="resetScoreboard()">Reset Skor</button>
+      <div class="scoreboard mt-4">
+        <h5>Skorboard:</h5>
+        <ul id="scoreList" class="list-group w-50 mx-auto"></ul>
+      </div>
     </div>
 
-    <div class="container" id="game-screen" style="display: none">
-      <h3 id="countdown">3</h3>
-      <div class="mb-2"><strong>Pemain:</strong> <span id="displayPlayer"></span> | <strong>Skor:</strong> <span id="displayScore">0</span></div>
-      <div class="lives mb-2" id="lives"></div>
-      <div class="game-board" id="game-board"></div>
-    </div>
+    <div class="container game-container" id="gameScreen">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <div><strong>Nama:</strong> <span id="displayName"></span></div>
+        <div><strong>Skor:</strong> <span id="score">0</span></div>
+        <div><strong>Level:</strong> <span id="level">1</span></div>
+        <div><strong>Waktu:</strong> <span id="time">0</span> detik</div>
+      </div>
 
-    <audio id="flipSound" src="sounds/flip.wav"></audio>
-    <audio id="matchSound" src="sounds/match.wav"></audio>
-    <audio id="failSound" src="sounds/fail.wav"></audio>
-    <audio id="winSound" src="sounds/win.wav"></audio>
+      <div id="countdown" class="display-4 text-primary mb-2"></div>
+      <div class="card-grid" id="cardGrid"></div>
+      <div class="alert-box" id="alertBox"></div>
+    </div>
 
     <script>
-      const fruitImages = ['images/apple.jpg', 'images/banana.jpg', 'images/grape.jpg', 'images/kiwi.jpg', 'images/cherry.jpg', 'images/strawberry.jpg', 'images/watermelon.jpg', 'images/pineapple.jpg'];
+      const buahImages = ['images/apple.jpg', 'images/banana.jpg', 'images/cherry.jpg', 'images/grape.jpg', 'images/kiwi.jpg', 'images/pineapple.jpg', 'images/watermelon.jpg', 'images/strawberry.jpg'];
+      const logoPath = 'images/logo.png';
 
-      let playerName = '';
-      let lives = 3;
-      let score = 0;
-      let timer;
+      let playerName = '',
+        level = 1,
+        score = 0,
+        time = 0,
+        timer,
+        flippedCards = [],
+        matched = 0;
 
-      const flipSound = document.getElementById('flipSound');
-      const matchSound = document.getElementById('matchSound');
-      const failSound = document.getElementById('failSound');
-      const winSound = document.getElementById('winSound');
+      const levelSettings = {
+        1: { time: 25, point: 1 },
+        2: { time: 20, point: 2 },
+        3: { time: 15, point: 3 },
+      };
 
       function startGame() {
         playerName = document.getElementById('playerName').value.trim();
         if (!playerName) return alert('Masukkan nama terlebih dahulu.');
 
-        document.getElementById('start-screen').style.display = 'none';
-        document.getElementById('game-screen').style.display = 'block';
+        document.getElementById('startScreen').style.display = 'none';
+        document.getElementById('gameScreen').style.display = 'block';
 
-        document.getElementById('displayPlayer').textContent = playerName;
-        document.getElementById('displayScore').textContent = 0;
+        document.getElementById('displayName').textContent = playerName;
+        document.getElementById('level').textContent = level;
+        document.getElementById('score').textContent = score;
 
-        lives = 3;
-        score = 0;
-        showCountdown();
+        prepareLevel();
       }
 
-      function showCountdown() {
-        const countdown = document.getElementById('countdown');
-        let counter = 3;
-        countdown.textContent = counter;
+      function prepareLevel() {
+        document.getElementById('cardGrid').innerHTML = '';
+        document.getElementById('alertBox').textContent = '';
+        matched = 0;
+
+        let cards = [...buahImages];
+        cards = cards.sort(() => 0.5 - Math.random()).slice(0, 8);
+        cards = [...cards, ...cards].sort(() => 0.5 - Math.random());
+
+        cards.forEach((src) => {
+          const card = document.createElement('div');
+          card.classList.add('card');
+          card.innerHTML = `
+          <img src="${logoPath}" class="back" />
+          <img src="${src}" class="front" />
+        `;
+          card.addEventListener('click', () => flipCard(card, src));
+          document.getElementById('cardGrid').appendChild(card);
+        });
+        // // 👉 Flip semua kartu langsung (tampilkan buah)
+        document.querySelectorAll('.card').forEach((c) => c.classList.add('flip'));
+        //// Mulai countdown 3 detik
+        document.getElementById('countdown').textContent = '3';
+        let cd = 3;
         const interval = setInterval(() => {
-          counter--;
-          countdown.textContent = counter;
-          if (counter === 0) {
+          cd--;
+          document.getElementById('countdown').textContent = cd > 0 ? cd : '';
+          if (cd === 0) {
             clearInterval(interval);
-            countdown.textContent = 'Go!';
-            setTimeout(() => {
-              countdown.textContent = '';
-              startRound();
-            }, 1000);
+            startTimer();
+            document.querySelectorAll('.card').forEach((c) => c.classList.remove('flip'));
           }
         }, 1000);
-      }
 
-      function startRound() {
-        const board = document.getElementById('game-board');
-        board.innerHTML = '';
-
-        const selectedImages = shuffle([...fruitImages, ...fruitImages]);
-
-        selectedImages.forEach((img) => {
-          const card = document.createElement('div');
-          card.className = 'card flipped';
-          card.innerHTML = `
-          <div class="card-inner">
-            <div class="card-front" style="background-image: url('${img}')"></div>
-            <div class="card-back" style="background-image: url('images/logo.png')"></div>
-          </div>
-        `;
-          card.onclick = () => flipCard(card, img);
-          board.appendChild(card);
-        });
-
-        showLives();
+        // show all cards at first
         setTimeout(() => {
-          hideCards();
-          startTimer();
-        }, 3000);
-      }
-
-      function hideCards() {
-        document.querySelectorAll('.card').forEach((card) => {
-          card.classList.remove('flipped');
-        });
-      }
-
-      let firstCard = null;
-      let lockBoard = false;
-
-      function flipCard(card, img) {
-        if (lockBoard || card.classList.contains('flipped')) return;
-        card.classList.add('flipped');
-        flipSound.play();
-
-        if (!firstCard) {
-          firstCard = { card, img };
-        } else {
-          if (firstCard.img === img && firstCard.card !== card) {
-            score++;
-            document.getElementById('displayScore').textContent = score;
-            matchSound.play();
-            firstCard = null;
-            checkWin();
-          } else {
-            lockBoard = true;
-            failSound.play();
-            setTimeout(() => {
-              card.classList.remove('flipped');
-              firstCard.card.classList.remove('flipped');
-              firstCard = null;
-              lockBoard = false;
-            }, 1000);
-          }
-        }
+          document.querySelectorAll('.card').forEach((c) => c.classList.add('flip'));
+        }, 100);
       }
 
       function startTimer() {
-        let time = 20;
-        const countdown = document.getElementById('countdown');
-        countdown.textContent = `${time} detik`;
-
+        time = levelSettings[level].time;
+        document.getElementById('time').textContent = time;
         timer = setInterval(() => {
           time--;
-          countdown.textContent = `${time} detik`;
+          document.getElementById('time').textContent = time;
           if (time <= 0) {
             clearInterval(timer);
-            lives--;
-            if (lives > 0) {
-              showCountdown();
-            } else {
-              endGame();
-            }
+            gameOver('Waktu habis!');
           }
         }, 1000);
       }
 
-      function showLives() {
-        const livesContainer = document.getElementById('lives');
-        livesContainer.innerHTML = '';
-        for (let i = 0; i < lives; i++) {
-          const heart = document.createElement('span');
-          heart.innerHTML = '❤️';
-          livesContainer.appendChild(heart);
+      function flipCard(card, src) {
+        if (flippedCards.length >= 2 || card.classList.contains('flip')) return;
+        card.classList.add('flip');
+        flippedCards.push({ card, src });
+
+        if (flippedCards.length === 2) {
+          if (flippedCards[0].src === flippedCards[1].src) {
+            score += levelSettings[level].point;
+            document.getElementById('score').textContent = score;
+            matched++;
+            flippedCards = [];
+            if (matched === 8) {
+              clearInterval(timer);
+              if (level === 3) {
+                setTimeout(() => {
+                  alertBox('🎉 Selamat, kamu berhasil! Silakan ambil hadiah di panitia 🎁');
+                  saveScore();
+                  setTimeout(resetToStart, 4000);
+                }, 500);
+              } else {
+                alertBox(`Level ${level} selesai! Bersiap ke Level ${level + 1}...`);
+                level++;
+                setTimeout(prepareLevel, 3000);
+              }
+            }
+          } else {
+            setTimeout(() => {
+              flippedCards.forEach((f) => f.card.classList.remove('flip'));
+              flippedCards = [];
+            }, 800);
+          }
         }
       }
 
-      function checkWin() {
-        const flippedCards = document.querySelectorAll('.card.flipped');
-        if (flippedCards.length === fruitImages.length * 2) {
-          clearInterval(timer);
-          winSound.play();
-          endGame();
-        }
-      }
-
-      function endGame() {
+      function gameOver(msg) {
+        alertBox(`💀 Game Over: ${msg}`);
         saveScore();
-        alert(`Permainan selesai! Skor Anda: ${score}`);
-        document.getElementById('game-screen').style.display = 'none';
-        document.getElementById('start-screen').style.display = 'block';
+        setTimeout(resetToStart, 4000);
+      }
+
+      function alertBox(msg) {
+        document.getElementById('alertBox').innerHTML = `<div class="alert alert-info">${msg}</div>`;
+      }
+
+      function resetToStart() {
+        document.getElementById('gameScreen').style.display = 'none';
+        document.getElementById('startScreen').style.display = 'block';
+        level = 1;
+        score = 0;
+        flippedCards = [];
         document.getElementById('playerName').value = '';
-        loadScoreboard();
       }
 
       function saveScore() {
-        const stored = JSON.parse(localStorage.getItem('scoreboard') || '[]');
-        stored.push({ name: playerName, score });
-        localStorage.setItem('scoreboard', JSON.stringify(stored));
+        let scores = JSON.parse(localStorage.getItem('scoreboard') || '[]');
+        scores.push({ name: playerName, score });
+        scores.sort((a, b) => b.score - a.score);
+        localStorage.setItem('scoreboard', JSON.stringify(scores));
+        renderScoreboard();
       }
 
-      function loadScoreboard() {
-        const stored = JSON.parse(localStorage.getItem('scoreboard') || '[]');
-        const list = document.getElementById('scoreboard');
-        list.innerHTML = '';
-        stored
-          .sort((a, b) => b.score - a.score)
-          .slice(0, 5)
-          .forEach((entry) => {
-            const item = document.createElement('li');
-            item.className = 'list-group-item';
-            item.textContent = `${entry.name}: ${entry.score}`;
-            list.appendChild(item);
-          });
+      function renderScoreboard() {
+        const scoreList = document.getElementById('scoreList');
+        scoreList.innerHTML = '';
+        let scores = JSON.parse(localStorage.getItem('scoreboard') || '[]');
+        scores.forEach((s) => {
+          const li = document.createElement('li');
+          li.className = 'list-group-item d-flex justify-content-between';
+          li.textContent = `${s.name}`;
+          const badge = document.createElement('span');
+          badge.className = 'badge bg-primary rounded-pill';
+          badge.textContent = s.score;
+          li.appendChild(badge);
+          scoreList.appendChild(li);
+        });
       }
 
       function resetScoreboard() {
-        if (confirm('Apakah Anda yakin ingin menghapus semua skor?')) {
-          localStorage.removeItem('scoreboard');
-          loadScoreboard();
-        }
+        localStorage.removeItem('scoreboard');
+        renderScoreboard();
       }
 
-      function shuffle(array) {
-        for (let i = array.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1));
-          [array[i], array[j]] = [array[j], array[i]];
-        }
-        return array;
-      }
-
-      loadScoreboard();
+      window.onload = renderScoreboard;
     </script>
   </body>
 </html>
